@@ -1,18 +1,16 @@
 import logging
 import os
-
-import requests
 import time
 
-from telegram import Bot
+import requests
 from dotenv import load_dotenv
-
+from telegram import Bot
 
 load_dotenv()
 
 logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
-    level=logging.DEBUG
+    level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
@@ -35,13 +33,13 @@ HOMEWORK_VERDICTS = {
 }
 
 
-def check_tokens():
-    """ Проверяет доступность переменных окружения """
+def check_tokens() -> bool:
+    """Проверяет доступность переменных окружения."""
     return all((PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID))
 
 
-def get_api_answer(current_timestamp):
-    """ Делает запрос к эндпоинту API Практикум.Домашка"""
+def get_api_answer(current_timestamp: int) -> dict:
+    """Делает запрос к эндпоинту API Практикум.Домашка."""
     timestamp = current_timestamp or int(time.time())
     params = {'from_date': timestamp}
     try:
@@ -50,63 +48,66 @@ def get_api_answer(current_timestamp):
             ENDPOINT,
             headers=HEADERS,
             params=params)
-        if homework_status.status_code != 200:
-            message = 'API не ответил'
-            logger.warning(message)
-            raise Exception(message)
-
-        return homework_status.json()
-        # возвращает словарь вида {"homeworks": [...], "current_date":1634074965}
     except Exception as error:
         message = f'Ошибка при запросе к основному API: {error}'
         logger.error(message)
-        return message
+        raise Exception(message)
+    if homework_status.status_code != 200:
+        message = 'Не удалось установить соединение с API-сервисом'
+        logger.warning(message)
+        raise Exception(message)
+
+    return homework_status.json()
 
 
-def check_response(response):
-    """ Проверяет ответ API Практикум.Домашка на корректность"""
+def check_response(response: dict) -> dict:
+    """Проверяет ответ API Практикум.Домашка на корректность."""
     if isinstance(response, dict):
         if 'homeworks' and 'current_date' in response.keys():
-            logger.info(f'Получен валидный ответ от API Практикум.Домашка')
-            return response['homeworks']
-            # возвращает список работ, который может быть пустым
+            logger.info('Получен валидный ответ от API Практикум.Домашка')
+            if isinstance(response['homeworks'], list):
+                return response['homeworks']
+            else:
+                message = 'Ответ от API Практикум.Домашка не валиден'
+                logger.error(message)
+                raise Exception(message)
+
         else:
             message = 'Ответ от API Практикум.Домашка не валиден'
             logger.error(message)
-            return message
+            raise Exception(message)
     else:
-        return response
+        return {}
 
-def parse_status(homework):
-    """ Проверяет статус домашней роботы и возвращает расшифровку статуса """
+
+def parse_status(homework: dict) -> str:
+    """Проверяет статус домашней роботы и возвращает расшифровку статуса."""
     logging.info('Проверка статуса домашней работы')
-    # получаю на вход список или сообщение об ошибке
     if isinstance(homework, dict) and homework:
         try:
-            homework_name = homework[0].get('homework_name')
-            homework_status = homework[0].get('status')
+            homework_name = homework.get('homework_name')
+            homework_status = homework.get('status')
         except KeyError:
-            message = f'В полученном ответе отсутствует название работы'
+            message = 'В полученном ответе отсутствует название работы'
             logger.error(message)
-            return message
+            raise KeyError(message)
         try:
             verdict = HOMEWORK_VERDICTS[homework_status]
         except KeyError:
-            message = f'Недокументированный статус домашней работы:{homework_status}'
+            message = f'Недокументированный статус домашней ' \
+                      f'работы:{homework_name}'
             logger.error(message)
-            return message
+            raise KeyError(message)
         logging.info('Получен валидный статус работы {}'.format(homework_name))
         return f'Изменился статус проверки работы "{homework_name}". {verdict}'
-    elif isinstance(homework, list):
+    else:
         message = 'Получен пустой список работ'
         logger.info = message
         return ''
-    else:
-        return homework
 
 
-def send_message(bot, message):
-    """ Отправляет сообщение боту в телеграмм """
+def send_message(bot, message: str) -> None:
+    """Отправляет сообщение боту в телеграм."""
     last_message = ''
     if last_message != message:
         try:
@@ -119,7 +120,6 @@ def send_message(bot, message):
 
 def main():
     """Основная логика работы бота."""
-
     if check_tokens():
         bot = Bot(token=TELEGRAM_TOKEN)
         current_timestamp = int(time.time())
@@ -147,9 +147,12 @@ def main():
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
             logger.error(message)
+            send_message(bot, message)
             time.sleep(RETRY_TIME)
+
+        except KeyboardInterrupt:
+            logger.info('Остановка выполнения программы')
 
 
 if __name__ == '__main__':
     main()
-

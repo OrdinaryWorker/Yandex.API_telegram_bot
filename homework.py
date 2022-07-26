@@ -77,7 +77,9 @@ def check_response(response: dict) -> dict:
             logger.error(message)
             raise Exception(message)
     else:
-        return {}
+        message = 'Ответ от API Практикум.Домашка не валиден'
+        logger.error(message)
+        raise TypeError(message)
 
 
 def parse_status(homework: dict) -> str:

@@ -12,7 +12,7 @@ load_dotenv()
 
 logging.basicConfig(
     format='%(asctime)s - %(funcName)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG
 )
 
 logger = logging.getLogger(__name__)
@@ -51,8 +51,8 @@ def get_api_answer(current_timestamp: int) -> dict:
             headers=HEADERS,
             params=params)
     except Exception as error:
-        message = f'Ошибка при запросе к основному API: {error}, ' \
-                  f'{ENDPOINT}, {HEADERS}'
+        message = (f'Ошибка при запросе к основному API: {error}, ' 
+                   f'{ENDPOINT}, {HEADERS}')
         logger.error(message)
         raise Exception(message)
     if homework_status.status_code != HTTPStatus.OK:
@@ -79,7 +79,7 @@ def check_response(response: dict) -> list:
         raise TypeError(message)
 
     homeworks_list = response.get('homeworks')
-    if not isinstance(homeworks_list, list):
+    if homeworks_list is None:
         message = 'В ответе от API нет необходимого ключа "homeworks"'
         logger.error(message)
         raise KeyError(message)

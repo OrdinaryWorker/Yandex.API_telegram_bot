@@ -56,8 +56,8 @@ def get_api_answer(current_timestamp: int) -> dict:
         logger.error(message)
         raise Exception(message)
     if homework_status.status_code != HTTPStatus.OK:
-        message = f'Не удалось установить соединение с API-сервисом ' \
-                  f'{homework_status.url}, {homework_status.status_code}'
+        message = (f'Не удалось установить соединение с API-сервисом '
+                   f'{homework_status.url}, {homework_status.status_code}')
         logger.error(message)
         raise Exception(message)
     try:
@@ -70,7 +70,7 @@ def get_api_answer(current_timestamp: int) -> dict:
     return homework_status
 
 
-def check_response(response: dict) -> dict:
+def check_response(response: dict) -> list:
     """Проверяет ответ API Практикум.Домашка на корректность."""
     logger.info('Проверка валидности полученного ответа от API')
     if not isinstance(response, dict):
@@ -78,18 +78,23 @@ def check_response(response: dict) -> dict:
         logger.error(message)
         raise TypeError(message)
 
-    if not response.keys() & {'homeworks', 'current_date'}:
-        message = ('В ответе от API нет необходимой ключей '
-                   '"homeworks" и "current_date"')
+    homeworks_list = response.get('homeworks')
+    if not isinstance(homeworks_list, list):
+        message = 'В ответе от API нет необходимого ключа "homeworks"'
         logger.error(message)
         raise KeyError(message)
 
-    if not isinstance(response['homeworks'], list):
+    if 'current_date' not in response:
+        message = 'В ответе от API нет необходимого ключа "current_date"'
+        logger.error(message)
+        raise KeyError(message)
+
+    if not isinstance(homeworks_list, list):
         message = 'Значение ключа "homeworks" не является списком'
         logger.error(message)
         raise TypeError(message)
 
-    return response['homeworks']
+    return homeworks_list
 
 
 def parse_status(homework: dict) -> str:
@@ -137,11 +142,11 @@ def main():
     bot = Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
     previous_report = {
-        'name_message': '',
+        'message_name': '',
         'output_text': ''
     }
     current_report = {
-        'name_message': '',
+        'message_name': '',
         'output_text': ''
     }
     while True:
@@ -151,7 +156,7 @@ def main():
             homeworks_list = check_response(response)
             if homeworks_list:
                 verdict = parse_status(homeworks_list[0])
-                current_report['name_message'] = verdict.split()[4]
+                current_report['message_name'] = verdict.split()[4]
                 current_report['output_text'] = verdict
             else:
                 message = 'Статус работы не изменился'
@@ -165,7 +170,6 @@ def main():
                 logger.debug(
                     'Статус работы не изменился, сообщение не отправлено'
                 )
-            time.sleep(RETRY_TIME)
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
@@ -175,9 +179,6 @@ def main():
             if current_report != previous_report:
                 send_message(bot, current_report['output_text'])
                 previous_report = current_report.copy()
-
-        except KeyboardInterrupt:
-            logger.info('Остановка выполнения программы')
 
         finally:
             time.sleep(RETRY_TIME)

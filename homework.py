@@ -51,7 +51,7 @@ def get_api_answer(current_timestamp: int) -> dict:
             headers=HEADERS,
             params=params)
     except Exception as error:
-        message = (f'Ошибка при запросе к основному API: {error}, ' 
+        message = (f'Ошибка при запросе к основному API: {error}, '
                    f'{ENDPOINT}, {HEADERS}')
         logger.error(message)
         raise Exception(message)
